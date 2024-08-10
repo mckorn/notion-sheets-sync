@@ -1,0 +1,9 @@
+#.gitignore
+
+token.pickle
+
+*.json
+.env
+
+node_modules
+notionpy
