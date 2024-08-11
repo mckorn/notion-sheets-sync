@@ -13,11 +13,12 @@ from pprint import pprint
 
 load_dotenv()
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # how notion knows you are a valid user (now you officially validate your notion api)
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 RANGE_NAME = os.getenv("RANGE_NAME")
+RANGE = os.getenv("RANGE")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID")
 
@@ -55,6 +56,35 @@ def get_sheet():
         print("%s rows found." % len(values))
         return values
 
+def write_to_sheet(date, type, company, position, status, location, referral, website):
+    creds = None
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
+
+    service = build("sheets", "v4", credentials=creds)
+
+    service.spreadsheets().values().append(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGE,
+        valueInputOption='USER_ENTERED',
+        insertDataOption='INSERT_ROWS',
+        body={
+            'values': [[date, type, company, position, status, location, referral, website]]
+        }
+    ).execute()
+    print('super success !!!!!!!!!!!!!!!!')
+    
+
+
 
 # Function to create a paragraph block for each string in the array
 def write_p_block(text):
@@ -84,30 +114,6 @@ def read_text(client, page_id):
     response = client.blocks.children.list(block_id=page_id)
     # return response['results'][0]['paragraph']['text'][0]['text']['content']
     return response["results"]
-
-def read_database(client, database_id):
-    dbs = []
-    response = client.databases.retrieve(database_id)
-    
-    block_id = response["id"]
-    title = response["title"]
-    db_title = title[0]["plain_text"]
-    block_description = response["description"]
-    properties = response["properties"]
-    print('3')
-    print(properties)
-    print('4')
-    
-    for row in properties:
-        if not properties:
-            return
-        
-        r = {
-            "title": db_title,
-            "name": row[0],
-        }
-        dbs.append(r)
-    return dbs
 
 def safe_get(data, dot_chained_keys):
     '''
@@ -177,7 +183,7 @@ def get_database(client, content):
         
         rows.append({
             "languages": languages,
-            "interview_stage": interview_stage,
+            "status": interview_stage,
             "location": location,
             "company": company,
             "website": website,
@@ -214,6 +220,23 @@ def create_default_database(client):
 
     return database
 
+def write_to_database(client, database_id, languages, status, location, company, website, date, position):
+    client.pages.create(
+        **{
+            'parent': {"database_id": database_id},
+            # tell notion exactly where and what type we need to populate
+            'properties': {
+                'Languages': {'multi_select': [{'name': languages}]},
+                'Status': {'status': {'name': status}},
+                'Location': {'select': {'name': location}},
+                'Company': {'rollup': {'array': [{'title': [{'plain_text': company}]}]}},
+                'Website': {'rich_text': [{'plain_text': website}]},
+                'Date': {'date': {'start': date}},
+                'Position': {'title': [{'plain_text': position}]},   
+            }
+        }
+    )
+    
 
 def main():
     client = Client(auth=NOTION_TOKEN)
@@ -221,24 +244,38 @@ def main():
     write_dict_to_file_json(content, 'content.json')
 
     data = get_sheet()
-    # print("success !!!!!!!!!!!!!!!!")
+    print('success !!!!!!!!!!!!!!!!')
     
-    db_info = client.databases.retrieve("d671d978-b0cd-4f82-9d54-d6e6960cc3ae")
-    write_dict_to_file_json(db_info, 'db_info.json')
+    # db_info = client.databases.retrieve("d671d978-b0cd-4f82-9d54-d6e6960cc3ae")
+    # write_dict_to_file_json(db_info, 'db_info.json')
     db_rows = client.databases.query("d671d978-b0cd-4f82-9d54-d6e6960cc3ae")
-    write_dict_to_file_json(db_rows, 'db_rows.json')
+    # write_dict_to_file_json(db_rows, 'db_rows.json')
     
-    # Languages, Interview Stage, Location, Company, Website, Date, Position
+    # Languages, Stage, Location, Company, Website, Date, Position
     db = get_database(client, db_rows)
+    last_row = db[-1]
+    languages = last_row["languages"]
+    status = last_row["status"]
+    location = last_row["location"]
+    company = last_row["company"]
+    website = last_row["website"]
+    date = last_row["date"]
+    position = last_row["position"]
+    
+    #print(languages, status, location, company, website, date, position)
+    write_to_sheet(date, languages, company, position, status, location, "No", website)
     
     # Date, Type, Company, Position, Status, Location, Referral?, Website 
-    print(data)
+    #sht = write_to_database(client, "d671d978-b0cd-4f82-9d54-d6e6960cc3ae", "Python", "Not Applied", "Remote", "Google", "https://www.google.com", "2021-09-01", "Software Engineer")
+    #print("success !!!!!!!!!!!!!!!!")
     
     # TODO now that you have information from both sides, you need to make it so that you can update the notion database with the google sheets information
     # based on when the user puts a new row in the google sheets
     
-    # 1. Trigger function when user updates a row on their google sheets
-    # 2. Take that new information and update the notion database with the new information
+    # 1. Test writing on both notion and sheets again (notion dosen't allow using rollover on databases so its sheets for now)
+    # 2. Trigger function when user updates a row on their google sheets (now notion)
+    # 3. Take that new information and update the notion database with the new information (now sheets)
+      
       
     # page_response = client.pages.retrieve(NOTION_PAGE_ID)
     # pprint(page_response, indent=2)
