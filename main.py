@@ -37,7 +37,6 @@ row = {
 
 # Functions for Google Sheets data connection
 
-
 # Function to get the data from google sheets
 def get_sheet():
     """Shows basic usage of the Sheets API.
@@ -63,15 +62,29 @@ def get_sheet():
         sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
     )
     values = result.get("values", [])
+    
+    rows = []
+    first_row = values[0]
+    for row in values:
+        length = len(row)
+        row_object = {}
+        for i, value in enumerate(row):
+            row_object[f"{first_row[i]}"] = value
+        if length < 8:
+            row_object["Website"] = ''
+        
+        rows.append(row_object)
 
     if not values:
         print("No data found.")
         return None
     else:
+        rows = rows[1:]
         print("%s rows found." % len(values))
+        return rows
 
 # Function to write data to google sheets
-def write_to_sheet(date, type, company, position, status, location, referral, website):
+def write_to_sheet(row, date, type, company, position, status, location, referral, website):
     creds = None
     if os.path.exists("token.pickle"):
         with open("token.pickle", "rb") as token:
@@ -91,50 +104,88 @@ def write_to_sheet(date, type, company, position, status, location, referral, we
     # format the data
     
     # date
-    formatted_date = date[-5:]
+    formatted_date = date[5:] # gets the last 5 elements of the date
     
     # status
-    if status == 'Applied':
-        formatted_stat = 'Applied'
-    elif status == 'Coding Test':
-        formatted_stat = 'Coding Challenge'
-    elif status == 'Declined':
-        formatted_stat = 'Rejected'
-    elif status == 'Not Applied':
-        formatted_stat = 'Need to Apply'
-    elif status == 'Waitlisted':
-        formatted_stat = 'Waitlisted'
-    else:
-        formatted_stat = 'Interview'
-        
-
-    service.spreadsheets().values().append(
-        spreadsheetId=SPREADSHEET_ID,
-        range=RANGE,
-        valueInputOption="USER_ENTERED",
-        responseValueRenderOption="FORMATTED_VALUE",
-        insertDataOption="INSERT_ROWS",
-        body={
-            "values": [
+    formatted_stat = convert_n_to_s_status(status)
+    
+    if row != 0:
+        # Update the values
+        body = {
+            'values': [
                 [formatted_date, type, company, position, formatted_stat, location, referral, website]
             ]
-        },
-    ).execute()
+        }
+        result = service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range='2024Cycle!B{}:I{}'.format(row, row),
+            valueInputOption='USER_ENTERED',  # How to interpret input data
+            body=body
+        ).execute()
+        print(f"{result.get('updatedCells')} cells updated.")
+    else:
+        service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGE,
+            valueInputOption="USER_ENTERED",
+            responseValueRenderOption="FORMATTED_VALUE",
+            insertDataOption="INSERT_ROWS",
+            body={
+                "values": [
+                    [formatted_date, type, company, position, formatted_stat, location, referral, website]
+                ]
+            },
+        ).execute()
     print("super success !!!!!!!!!!!!!!!!")
 
+def compare_rows(r1, r2):
+    print('print rows')
+    print(r1) # row from notion
+    print(r2) # row from google sheets
+    
+    # extract data from notion
+    r1_status = r1["status"]
+    r1_company = r1["company"]
+    r1_position = r1["position"]    
+    r1_location = r1["location"]
+    r1_website = r1["website"]
+    r1_date = r1["date"]
+    r1_referral = r1["referral"]  
+    
+    r2_status = r2["Status"]
+    r2_company = r2["Company"]
+    r2_position = r2["Position"]
+    r2_location = r2["Location"]
+    r2_website = r2["Website"]
+    r2_date = r2["Date"]
+    r2_referral = r2["Referral?"] 
 
-def find_empty_row(values):
-    count = 0
-    for i, element in enumerate(values):
-        print(f"Index: {i}, Element: {element}, Current Count: {count}")
-        if not element:
-            count += 1
-            if count == 8:
-                print(f"Found 8 consecutive empty elements starting at index {i - 7}")
-                return i - 7
-        else:
-            count = 0
+        
+    
+    # first check if its the same job
+    if r1_company == r2["Company"] and r1_position == r2["Position"]:
+        print("same job")
+        # check if the status is different
+        if r1_status != r2_status or r1_location != r2_location:
+            return 1
+        return 0
+    else:
+        print("different job")
+        return -1
 
+def convert_n_to_s_status(status):
+    if status == 'Applied':
+        return 'Applied'
+    if status == 'Coding Challenge':
+        return 'Coding Challenge'
+    elif status == 'Rejected':
+        return 'Rejected'
+    elif status == 'Need to Apply':
+        return 'Need to Apply'
+    elif status == 'Waitlisted':
+        return 'Waitlisted'
+    else:
+        return 'Interview'
 
 # Function to create a paragraph block for each string in the array
 def write_p_block(text):
@@ -143,7 +194,6 @@ def write_p_block(text):
         "type": "paragraph",
         "paragraph": {"rich_text": [{"type": "text", "text": {"content": text}}]},
     }
-
 
 def write_text(client, page_id, text):
     # block_id is gonna be page (pages are also represented as a block)
@@ -160,12 +210,10 @@ def write_text(client, page_id, text):
         ],
     )
 
-
 def read_text(client, page_id):
     # block_id is gonna be page (pages are also represented as a block)
     response = client.blocks.children.list(block_id=page_id)
     return response["results"]
-
 
 def safe_get(data, dot_chained_keys):
     """
@@ -182,7 +230,6 @@ def safe_get(data, dot_chained_keys):
         except (KeyError, TypeError, IndexError):
             return None
     return data
-
 
 def create_simple_blocks_from_content(client, content):
     p_blocks = []
@@ -214,15 +261,13 @@ def create_simple_blocks_from_content(client, content):
 
     return p_blocks
 
-
 def write_dict_to_file_json(content, file_name):
     json_str = json.dumps(content)
 
     with open(file_name, "w") as f:
         f.write(json_str)
 
-
-def get_database(client, content):
+def get_database(content):
     rows = []
     for row in content["results"]:
         languages = safe_get(row, "properties.Languages.multi_select.0.name")
@@ -249,10 +294,7 @@ def get_database(client, content):
                 "referral": referral,
             }
         )
-
-    write_dict_to_file_json(rows, "rows.json")
     return rows
-
 
 def create_default_database(client):
     # Define the default database properties
@@ -280,7 +322,6 @@ def create_default_database(client):
 
     return database
 
-
 def write_to_database(
     client, database_id, languages, status, location, company, website, date, position
 ):
@@ -302,49 +343,47 @@ def write_to_database(
         }
     )
 
-
 def main():
+    # 1. Get the data from Notion
     client = Client(auth=NOTION_TOKEN)
     content = read_text(client, NOTION_PAGE_ID)
     write_dict_to_file_json(content, "content.json")
+    # db_info = client.databases.retrieve("NOTION_DATABASE_ID")
+    # page_response = client.pages.retrieve(NOTION_PAGE_ID)
+    # pprint(page_response, indent=2)
+    db_rows = client.databases.query(NOTION_DATABASE_ID)
+    write_dict_to_file_json(db_rows, 'db_rows.json')
+    simplified_rows = get_database(db_rows)
+    write_dict_to_file_json(simplified_rows, "rows.json")
 
+    # 2. Get the data from Google Sheets
     data = get_sheet()
     write_dict_to_file_json(data, 'sheet.json')
     print("success !!!!!!!!!!!!!!!!")
-    #row_index = find_empty_row(data)
-    #print(row_index)
-
-    # db_info = client.databases.retrieve("d671d978-b0cd-4f82-9d54-d6e6960cc3ae")
-    db_rows = client.databases.query(NOTION_DATABASE_ID)
-    write_dict_to_file_json(db_rows, 'db_rows.json')
-
-    # Languages, Stage, Location, Company, Website, Date, Position
-    db = get_database(client, db_rows)
-    last_row = db[10]
-    status = last_row["status"]
-    location = last_row["location"]
-    company = last_row["company"]
-    website = last_row["website"]
-    date = last_row["date"]
-    position = last_row["position"]
-    referral = last_row["referral"]
-
-    # print(languages, status, location, company, website, date, position)
-    write_to_sheet(date, row["type"], company, position, status, location, referral, website)
-
-    # Date, Type, Company, Position, Status, Location, Referral?, Website
-    # sht = write_to_database(client, "d671d978-b0cd-4f82-9d54-d6e6960cc3ae", "Python", "Not Applied", "Remote", "Google", "https://www.google.com", "2021-09-01", "Software Engineer")
-    # print("success !!!!!!!!!!!!!!!!")
-
-    # TODO now that you have information from both sides, you need to make it so that you can update the notion database with the google sheets information
-    # based on when the user puts a new row in the google sheets
-
-    # 1. Test writing on both notion and sheets again (notion dosen't allow using rollover on databases so its sheets for now)
-    # 2. Trigger function when user updates a row on their google sheets (now notion)
-    # 3. Take that new information and update the notion database with the new information (now sheets)
-
-    # page_response = client.pages.retrieve(NOTION_PAGE_ID)
-    # pprint(page_response, indent=2)
+    
+    # 3. Take that new information and update the sheets database with the new information 
+    i=2
+    j=-3
+    result = compare_rows(simplified_rows[j], data[i])
+    if result == 0:
+        print("rows are the same")  
+    elif result == 1:
+        print("rows are same but behind")  
+        # take google sheets and overwrite it if notion row is different  
+        write_to_sheet(i+3, simplified_rows[j]["date"], data[j]["Type"], simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
+    else:
+        print("rows are different")
+    
+    
+    
+    
+    # date = "2021-6-29"
+    # print(date[-5:]) # ending start, including 5th character
+    # print(date[5:]) # ending start, excluding 5th character
+    # print(date[:-5]) # beginning start, excluding 5th character
+    # print(date[:5]) # beginning start, including 5th character
+    # negative version will always be the smaller one
+ 
 
 
 if __name__ == "__main__":
