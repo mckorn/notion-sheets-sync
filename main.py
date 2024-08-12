@@ -109,7 +109,7 @@ def write_to_sheet(row, date, type, company, position, status, location, referra
     # status
     formatted_stat = convert_n_to_s_status(status)
     
-    if row != 0:
+    if row != -1:
         # Update the values
         body = {
             'values': [
@@ -124,6 +124,7 @@ def write_to_sheet(row, date, type, company, position, status, location, referra
         ).execute()
         print(f"{result.get('updatedCells')} cells updated.")
     else:
+        # New row to append
         service.spreadsheets().values().append(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGE,
@@ -139,38 +140,35 @@ def write_to_sheet(row, date, type, company, position, status, location, referra
     print("super success !!!!!!!!!!!!!!!!")
 
 def compare_rows(r1, r2):
-    print('print rows')
-    print(r1) # row from notion
-    print(r2) # row from google sheets
+    #print('comparing rows')
+    # print(r1) # row from notion
+    # print(r2) # row from google sheets
     
     # extract data from notion
     r1_status = r1["status"]
     r1_company = r1["company"]
     r1_position = r1["position"]    
     r1_location = r1["location"]
-    r1_website = r1["website"]
-    r1_date = r1["date"]
-    r1_referral = r1["referral"]  
+    # r1_website = r1["website"]
+    # r1_date = r1["date"]
+    # r1_referral = r1["referral"]  
     
     r2_status = r2["Status"]
     r2_company = r2["Company"]
     r2_position = r2["Position"]
     r2_location = r2["Location"]
-    r2_website = r2["Website"]
-    r2_date = r2["Date"]
-    r2_referral = r2["Referral?"] 
+    # r2_website = r2["Website"]
+    # r2_date = r2["Date"]
+    # r2_referral = r2["Referral?"] 
 
-        
-    
+    #print(r1_company, r1_position, r2_company, r2_position)
     # first check if its the same job
-    if r1_company == r2["Company"] and r1_position == r2["Position"]:
-        print("same job")
+    if r1_company == r2_company and r1_position == r2_position:
         # check if the status is different
         if r1_status != r2_status or r1_location != r2_location:
             return 1
         return 0
     else:
-        print("different job")
         return -1
 
 def convert_n_to_s_status(status):
@@ -362,21 +360,50 @@ def main():
     print("success !!!!!!!!!!!!!!!!")
     
     # 3. Take that new information and update the sheets database with the new information 
-    i=2
-    j=-3
-    result = compare_rows(simplified_rows[j], data[i])
-    if result == 0:
-        print("rows are the same")  
-    elif result == 1:
-        print("rows are same but behind")  
-        # take google sheets and overwrite it if notion row is different  
-        write_to_sheet(i+3, simplified_rows[j]["date"], data[j]["Type"], simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
-    else:
-        print("rows are different")
+    i=0
+    j=-1
+    # this currently won't work if there are more rows in data than simplified_rows
+    for row in simplified_rows:
+        result = compare_rows(simplified_rows[j], data[i])
+        if result == 0: 
+            # rows are the same
+            i+=1
+            j-=1
+            continue
+        elif result == 1:
+            # take google sheets and overwrite it if notion row is different  
+            write_to_sheet(i+3, simplified_rows[j]["date"], data[i]["Type"], simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
+        else:
+            # iterate down the sheet until we find the same job
+            original_i = i
+            r = -1
+            i+=1
+            # check to see if this is a notion exclusive row
+            while r == -1 and i < len(data): 
+                r = compare_rows(simplified_rows[j], data[i])
+                i+=1
+            
+            # analyze the results from compare rows
+            if r == -1:
+                # print("job not found in google sheets")
+                write_to_sheet(-1, simplified_rows[j]["date"], "Job", simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
+                i = original_i
+                j-=1
+                continue
+            elif r == 1:
+                # print("job found in google sheets but needs updating")
+                write_to_sheet(i+2, simplified_rows[j]["date"], "Job", simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
+            else:
+                #print('this means that we are stuck on a unique sheet row')
+                i = original_i
+                j-=1
+                continue
+                
+            i = original_i
+        i+=1
+        j-=1
     
-    
-    
-    
+
     # date = "2021-6-29"
     # print(date[-5:]) # ending start, including 5th character
     # print(date[5:]) # ending start, excluding 5th character
