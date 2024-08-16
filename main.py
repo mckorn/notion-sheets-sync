@@ -24,18 +24,19 @@ NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
 # Row in Google Sheets Data
 row = {
-    "date": "29-06",
+    "date": "06-29",
     "type": "Job",
     "company": "NASA",
     "position": "Software Engineer",
     "status": "Applied",
     "location": "Raleigh, NC",
-    "referral": 'FALSE',
+    "referral": "FALSE",
     "website": "https://www.example.com",
 }
 
 
 # Functions for Google Sheets data connection
+
 
 # Function to get the data from google sheets
 def get_sheet():
@@ -62,7 +63,7 @@ def get_sheet():
         sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
     )
     values = result.get("values", [])
-    
+
     rows = []
     first_row = values[0]
     for row in values:
@@ -71,8 +72,8 @@ def get_sheet():
         for i, value in enumerate(row):
             row_object[f"{first_row[i]}"] = value
         if length < 8:
-            row_object["Website"] = ''
-        
+            row_object["Website"] = ""
+
         rows.append(row_object)
 
     if not values:
@@ -80,11 +81,14 @@ def get_sheet():
         return None
     else:
         rows = rows[1:]
-        print("%s rows found." % len(values))
+        print("%s rows found in sheet." % len(values))
         return rows
 
+
 # Function to write data to google sheets
-def write_to_sheet(row, date, type, company, position, status, location, referral, website):
+def write_to_sheet(
+    row, date, type, company, position, status, location, referral, website
+):
     creds = None
     if os.path.exists("token.pickle"):
         with open("token.pickle", "rb") as token:
@@ -99,29 +103,42 @@ def write_to_sheet(row, date, type, company, position, status, location, referra
             pickle.dump(creds, token)
 
     service = build("sheets", "v4", credentials=creds)
-    
-    
+
     # format the data
-    
+
     # date
-    formatted_date = date[5:] # gets the last 5 elements of the date
-    
+    formatted_date = date[5:]  # gets the last 5 elements of the date
+
     # status
     formatted_stat = convert_n_to_s_status(status)
-    
+
     if row != -1:
         # Update the values
         body = {
-            'values': [
-                [formatted_date, type, company, position, formatted_stat, location, referral, website]
+            "values": [
+                [
+                    formatted_date,
+                    type,
+                    company,
+                    position,
+                    formatted_stat,
+                    location,
+                    referral,
+                    website,
+                ]
             ]
         }
-        result = service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range='2024Cycle!B{}:I{}'.format(row, row),
-            valueInputOption='USER_ENTERED',  # How to interpret input data
-            body=body
-        ).execute()
+        result = (
+            service.spreadsheets()
+            .values()
+            .update(
+                spreadsheetId=SPREADSHEET_ID,
+                range="2024Cycle!B{}:I{}".format(row, row),
+                valueInputOption="USER_ENTERED",  # How to interpret input data
+                body=body,
+            )
+            .execute()
+        )
         print(f"{result.get('updatedCells')} cells updated.")
     else:
         # New row to append
@@ -133,35 +150,45 @@ def write_to_sheet(row, date, type, company, position, status, location, referra
             insertDataOption="INSERT_ROWS",
             body={
                 "values": [
-                    [formatted_date, type, company, position, formatted_stat, location, referral, website]
+                    [
+                        formatted_date,
+                        type,
+                        company,
+                        position,
+                        formatted_stat,
+                        location,
+                        referral,
+                        website,
+                    ]
                 ]
             },
         ).execute()
-    print("super success !!!!!!!!!!!!!!!!")
+    print("new row added")
+
 
 def compare_rows(r1, r2):
-    #print('comparing rows')
+    # print('comparing rows')
     # print(r1) # row from notion
     # print(r2) # row from google sheets
-    
+
     # extract data from notion
     r1_status = r1["status"]
     r1_company = r1["company"]
-    r1_position = r1["position"]    
+    r1_position = r1["position"]
     r1_location = r1["location"]
     # r1_website = r1["website"]
     # r1_date = r1["date"]
-    # r1_referral = r1["referral"]  
-    
+    # r1_referral = r1["referral"]
+
     r2_status = r2["Status"]
     r2_company = r2["Company"]
     r2_position = r2["Position"]
     r2_location = r2["Location"]
     # r2_website = r2["Website"]
     # r2_date = r2["Date"]
-    # r2_referral = r2["Referral?"] 
+    # r2_referral = r2["Referral?"]
 
-    #print(r1_company, r1_position, r2_company, r2_position)
+    # print(r1_company, r1_position, r2_company, r2_position)
     # first check if its the same job
     if r1_company == r2_company and r1_position == r2_position:
         # check if the status is different
@@ -171,19 +198,21 @@ def compare_rows(r1, r2):
     else:
         return -1
 
+
 def convert_n_to_s_status(status):
-    if status == 'Applied':
-        return 'Applied'
-    if status == 'Coding Challenge':
-        return 'Coding Challenge'
-    elif status == 'Rejected':
-        return 'Rejected'
-    elif status == 'Need to Apply':
-        return 'Need to Apply'
-    elif status == 'Waitlisted':
-        return 'Waitlisted'
+    if status == "Applied":
+        return "Applied"
+    if status == "Coding Challenge":
+        return "Coding Challenge"
+    elif status == "Rejected":
+        return "Rejected"
+    elif status == "Need to Apply":
+        return "Need to Apply"
+    elif status == "Waitlisted":
+        return "Waitlisted"
     else:
-        return 'Interview'
+        return "Interview"
+
 
 # Function to create a paragraph block for each string in the array
 def write_p_block(text):
@@ -192,6 +221,7 @@ def write_p_block(text):
         "type": "paragraph",
         "paragraph": {"rich_text": [{"type": "text", "text": {"content": text}}]},
     }
+
 
 def write_text(client, page_id, text):
     # block_id is gonna be page (pages are also represented as a block)
@@ -208,10 +238,12 @@ def write_text(client, page_id, text):
         ],
     )
 
+
 def read_text(client, page_id):
     # block_id is gonna be page (pages are also represented as a block)
     response = client.blocks.children.list(block_id=page_id)
     return response["results"]
+
 
 def safe_get(data, dot_chained_keys):
     """
@@ -228,6 +260,7 @@ def safe_get(data, dot_chained_keys):
         except (KeyError, TypeError, IndexError):
             return None
     return data
+
 
 def create_simple_blocks_from_content(client, content):
     p_blocks = []
@@ -259,11 +292,15 @@ def create_simple_blocks_from_content(client, content):
 
     return p_blocks
 
+
 def write_dict_to_file_json(content, file_name):
+    file_path = os.path.join("data", file_name)
+    
     json_str = json.dumps(content)
 
-    with open(file_name, "w") as f:
+    with open(file_path, "w") as f:
         f.write(json_str)
+
 
 def get_database(content):
     rows = []
@@ -294,6 +331,7 @@ def get_database(content):
         )
     return rows
 
+
 def create_default_database(client):
     # Define the default database properties
     properties = {
@@ -320,6 +358,7 @@ def create_default_database(client):
 
     return database
 
+
 def write_to_database(
     client, database_id, languages, status, location, company, website, date, position
 ):
@@ -341,7 +380,13 @@ def write_to_database(
         }
     )
 
+
 def main():
+    # 0. Ask the user if they want to refresh the sheet or just add recent entries (so there is no delay after executing script)
+    choice = input(
+        "do you want to refresh your sheet or just add recent entries? (r/a): "
+    )
+
     # 1. Get the data from Notion
     client = Client(auth=NOTION_TOKEN)
     content = read_text(client, NOTION_PAGE_ID)
@@ -350,59 +395,99 @@ def main():
     # page_response = client.pages.retrieve(NOTION_PAGE_ID)
     # pprint(page_response, indent=2)
     db_rows = client.databases.query(NOTION_DATABASE_ID)
-    write_dict_to_file_json(db_rows, 'db_rows.json')
+    write_dict_to_file_json(db_rows, "db_rows.json")
     simplified_rows = get_database(db_rows)
     write_dict_to_file_json(simplified_rows, "rows.json")
 
     # 2. Get the data from Google Sheets
     data = get_sheet()
-    write_dict_to_file_json(data, 'sheet.json')
-    print("success !!!!!!!!!!!!!!!!")
-    
-    # 3. Take that new information and update the sheets database with the new information 
-    i=0
-    j=-1
-    # this currently won't work if there are more rows in data than simplified_rows
-    for row in simplified_rows:
-        result = compare_rows(simplified_rows[j], data[i])
-        if result == 0: 
-            # rows are the same
-            i+=1
-            j-=1
-            continue
-        elif result == 1:
-            # take google sheets and overwrite it if notion row is different  
-            write_to_sheet(i+3, simplified_rows[j]["date"], data[i]["Type"], simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
-        else:
-            # iterate down the sheet until we find the same job
-            original_i = i
-            r = -1
-            i+=1
-            # check to see if this is a notion exclusive row
-            while r == -1 and i < len(data): 
-                r = compare_rows(simplified_rows[j], data[i])
-                i+=1
-            
-            # analyze the results from compare rows
-            if r == -1:
-                # print("job not found in google sheets")
-                write_to_sheet(-1, simplified_rows[j]["date"], "Job", simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
-                i = original_i
-                j-=1
+    write_dict_to_file_json(data, "sheet.json")
+
+    i = 0
+    j = -1
+    if choice == "r":
+        # 3a. Take that new information and update the sheets database with the new information
+        for row in simplified_rows:
+            result = compare_rows(simplified_rows[j], data[i])
+            if result == 0:
+                # rows are the same
+                i += 1
+                j -= 1
                 continue
-            elif r == 1:
-                # print("job found in google sheets but needs updating")
-                write_to_sheet(i+2, simplified_rows[j]["date"], "Job", simplified_rows[j]["company"], simplified_rows[j]["position"], simplified_rows[j]["status"], simplified_rows[j]["location"], simplified_rows[j]["referral"], simplified_rows[j]["website"])
+            elif result == 1:
+                # take google sheets and overwrite it if notion row is different
+                write_to_sheet(
+                    i + 3,
+                    simplified_rows[j]["date"],
+                    data[i]["Type"],
+                    simplified_rows[j]["company"],
+                    simplified_rows[j]["position"],
+                    simplified_rows[j]["status"],
+                    simplified_rows[j]["location"],
+                    simplified_rows[j]["referral"],
+                    simplified_rows[j]["website"],
+                )
             else:
-                #print('this means that we are stuck on a unique sheet row')
+                # iterate down the sheet until we find the same job
+                original_i = i
+                r = -1
+                i += 1
+                # check to see if this is a notion exclusive row
+                while r == -1 and i < len(data):
+                    r = compare_rows(simplified_rows[j], data[i])
+                    i += 1
+
+                # analyze the results from compare rows
+                if r == -1:
+                    # print("job not found in google sheets")
+                    write_to_sheet(
+                        -1,
+                        simplified_rows[j]["date"],
+                        "Job",
+                        simplified_rows[j]["company"],
+                        simplified_rows[j]["position"],
+                        simplified_rows[j]["status"],
+                        simplified_rows[j]["location"],
+                        simplified_rows[j]["referral"],
+                        simplified_rows[j]["website"],
+                    )
+                    i = original_i
+                    j -= 1
+                    continue
+                elif r == 1:
+                    # print("job found in google sheets but needs updating")
+                    write_to_sheet(
+                        i + 2,
+                        simplified_rows[j]["date"],
+                        "Job",
+                        simplified_rows[j]["company"],
+                        simplified_rows[j]["position"],
+                        simplified_rows[j]["status"],
+                        simplified_rows[j]["location"],
+                        simplified_rows[j]["referral"],
+                        simplified_rows[j]["website"],
+                    )
+                else:
+                    # print('this means that we are stuck on a unique sheet row')
+                    i = original_i
+                    j -= 1
+                    continue
+
                 i = original_i
-                j-=1
-                continue
-                
-            i = original_i
-        i+=1
-        j-=1
-    
+            i += 1
+            j -= 1
+    elif choice == "a":
+        # 3b. or just add your new row to the google sheets
+        if (
+            compare_rows(simplified_rows[0], data[-1]) == 0
+        ):  # checking the most recent rows
+            print("rows are up to date")
+        else:
+            print("updating rows")
+            write_to_sheet(-1, simplified_rows[0]["date"], "Job", simplified_rows[0]["company"], simplified_rows[0]["position"], simplified_rows[0]["status"], simplified_rows[0]["location"], simplified_rows[0]["referral"], simplified_rows[0]["website"])
+            # TODO implement so that it goes up the list until it finds a job that is already in the sheet and start adding from there
+    else:
+        print("invalid input, choose again")
 
     # date = "2021-6-29"
     # print(date[-5:]) # ending start, including 5th character
@@ -410,7 +495,6 @@ def main():
     # print(date[:-5]) # beginning start, excluding 5th character
     # print(date[:5]) # beginning start, including 5th character
     # negative version will always be the smaller one
- 
 
 
 if __name__ == "__main__":
