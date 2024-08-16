@@ -4,6 +4,10 @@ token.pickle
 
 *.json
 .env
+main.spec
 
 node_modules
 notionpy
+build
+dist
+data
