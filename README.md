@@ -1,7 +1,3 @@
-Here is a README file based on the provided code:
-
----
-
 # Notion to Google Sheets Sync
 
 **Author:** McKenna Corn  
