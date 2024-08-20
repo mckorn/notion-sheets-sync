@@ -4,7 +4,6 @@ token.pickle
 
 *.json
 .env
-main.spec
 
 node_modules
 data

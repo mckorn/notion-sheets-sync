@@ -163,7 +163,7 @@ def write_to_sheet(
                 ]
             },
         ).execute()
-
+        
 # Compares the rows from Notion and Google Sheets
 def compare_rows(r1, r2):
     # print('comparing rows')
@@ -231,12 +231,12 @@ def safe_get(data, dot_chained_keys):
         except (KeyError, TypeError, IndexError):
             return None
     return data
-
+  
 # Function to write data to a file 
 def write_dict_to_file_json(content, file_name):
     if not os.path.exists("data"):
         os.makedirs("data")
-        
+ 
     file_path = os.path.join("data", file_name)
     
     json_str = json.dumps(content)
@@ -260,7 +260,7 @@ def get_database(content):
         if not position:
             print('error')
             continue
-        
+
         # format data
         ref = convert_n_to_s_boolean(referral)
         
@@ -399,8 +399,7 @@ def main():
                 write_to_sheet(row_num, False, simplified_rows[0])
             else:
                 write_to_sheet(-1, True, simplified_rows[0])
-            
-            # TODO implement so that it goes up the list until it finds a job that is already in the sheet and start adding from there
+              # TODO implement so that it goes up the list until it finds a job that is already in the sheet and start adding from there
     else:
         print("invalid input, choose again")
 
