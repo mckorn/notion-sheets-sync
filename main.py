@@ -37,7 +37,7 @@ NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
-# Row in Google Sheets Data
+# Example row in Google Sheets Data
 row = {
     "Date": "06-29",
     "Company": "NASA",
