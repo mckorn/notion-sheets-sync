@@ -96,77 +96,6 @@ def get_sheet():
 
 # Function to write data to google sheets
 def write_to_sheet(
-    row, append, date, type, company, position, status, location, referral, website
-):
-    creds = None
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open("token.pickle", "wb") as token:
-            pickle.dump(creds, token)
-
-    service = build("sheets", "v4", credentials=creds)
-    
-    if append is False:
-        # Update the values
-        body = {
-            "values": [
-                [
-                    date,
-                    type,
-                    company,
-                    position,
-                    status,
-                    location,
-                    referral,
-                    website,
-                ]
-            ]
-        }
-        result = (
-            service.spreadsheets()
-            .values()
-            .update(
-                spreadsheetId=SPREADSHEET_ID,
-                range="2024Cycle!B{}:I{}".format(row, row),
-                valueInputOption="USER_ENTERED",  # How to interpret input data
-                body=body,
-            )
-            .execute()
-        )
-        print(f"{result.get('updatedCells')} cells updated with position {position}")
-    else:
-        # New row to append
-        service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGE,
-            valueInputOption="USER_ENTERED",
-            responseValueRenderOption="FORMATTED_VALUE",
-            insertDataOption="INSERT_ROWS",
-            body={
-                "values": [
-                    [
-                        date,
-                        type,
-                        company,
-                        position,
-                        status,
-                        location,
-                        referral,
-                        website,
-                    ]
-                ]
-            },
-        ).execute()
-
-# Function to write data to google sheets
-def write_to_sheet_temp(
     row, append, job
 ):
     creds = None
@@ -397,7 +326,7 @@ def main():
             elif result == 1:
                 needsUpdate = True
                 # take google sheets and overwrite it if the notion row is different
-                write_to_sheet_temp(
+                write_to_sheet(
                     i + 3,
                     False,
                     simplified_rows[j]
@@ -424,7 +353,7 @@ def main():
                         i -= 1
                         
                     if r == 1 or r == 0:
-                        write_to_sheet_temp(
+                        write_to_sheet(
                             i + 4, # this is 4 because of the extra i missing when exiting the while loop
                             False,
                             simplified_rows[j]
@@ -434,7 +363,7 @@ def main():
                         j -= 1
                         continue
                         
-                    write_to_sheet_temp(
+                    write_to_sheet(
                         -1,
                         True,
                         simplified_rows[j]
@@ -445,7 +374,7 @@ def main():
                     continue
                 elif r == 1:
                     #print("job found in google sheets but needs updating")
-                    write_to_sheet_temp(
+                    write_to_sheet(
                         i + 2, # this is 2 because of the extra i when exiting the while loop
                         False,
                         simplified_rows[j]
@@ -467,9 +396,9 @@ def main():
             print("updating rows")
             if (result == 1):
                 row_num = len(data) + 3 # the length is title row + # of rows so we need to add 1
-                write_to_sheet_temp(row_num, False, simplified_rows[0])
+                write_to_sheet(row_num, False, simplified_rows[0])
             else:
-                write_to_sheet_temp(-1, True, simplified_rows[0])
+                write_to_sheet(-1, True, simplified_rows[0])
             
             # TODO implement so that it goes up the list until it finds a job that is already in the sheet and start adding from there
     else:
