@@ -6,5 +6,4 @@ token.pickle
 .env
 
 node_modules
-notionpy
 data
