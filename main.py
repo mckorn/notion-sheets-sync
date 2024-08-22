@@ -139,7 +139,7 @@ def write_to_sheet(
             )
             .execute()
         )
-        print(f"{result.get('updatedCells')} cells updated with position {job['Position']}")
+        print(f"{result.get('updatedCells')} cells updated with position {job['Position']} and company {job['Company']}.")
     else:
         # New row to append
         service.spreadsheets().values().append(
@@ -190,6 +190,8 @@ def compare_rows(r1, r2):
     if r1_company == r2_company and r1_position == r2_position:
         # check if the other elements are different
         if r1_status != r2_status or r1_location != r2_location or r1_referral != r2_referral or r1_website != r2_website:
+            print(r1)
+            print(r2)
             return 1 # the row is not updated
         return 0 # they are the same row
     else:
@@ -245,7 +247,10 @@ def write_dict_to_file_json(content, file_name):
         f.write(json_str)
 
 # Gets the content from the Notion database and puts it in object form
-def get_database(content):
+def get_database():
+    client = Client(auth=NOTION_TOKEN)
+    content = client.databases.query(NOTION_DATABASE_ID, sorts=[{"property": "Date", "direction": "ascending"}])
+    
     rows = []
     for row in content["results"]:
         #languages = safe_get(row, "properties.Languages.multi_select.0.name")
@@ -288,19 +293,24 @@ def get_database(content):
         )
     return rows
 
+def append_new_entries(notion_rows, sheets_rows):
+    new_rows = len(notion_rows)-len(sheets_rows)
+    starting_i = len(sheets_rows)
+    print(f'there are {new_rows} new entries to add')
+    print(notion_rows[25])
+    
+    for i in range(starting_i, starting_i + new_rows):
+        write_to_sheet(-1, True, notion_rows[i])
+      
+    print('new rows have been added')
+
 def main():
-    # 0. Ask the user if they want to refresh the sheet or just add recent entries (so there is no delay after executing script)
-    choice = input(
-        "do you want to refresh your sheet or just add recent entries? (r/a): "
-    )
+    # 0. Ask the user if they want to refresh the sheet
+    choice = input("want to refresh your sheet of jobs? (y/n): ")
+    needsUpdate = False
 
     # 1. Get the data from Notion
-    client = Client(auth=NOTION_TOKEN)
-    content = read_text(client, NOTION_PAGE_ID)
-    write_dict_to_file_json(content, "content.json")
-    db_rows = client.databases.query(NOTION_DATABASE_ID, sorts=[{"property": "Date", "direction": "descending"}])
-    write_dict_to_file_json(db_rows, "db_rows.json")
-    simplified_rows = get_database(db_rows)
+    simplified_rows = get_database()
     write_dict_to_file_json(simplified_rows, "rows.json")
 
     # 2. Get the data from Google Sheets
@@ -308,20 +318,20 @@ def main():
     write_dict_to_file_json(data, "sheet.json")
 
     i = 0
-    j = -1
-    needsUpdate = False
-    if choice == "r":
+    j = 0
+    if choice == "y":
         # 3a. Take that new information and update the sheets database with the new information
         for row in simplified_rows:
             try:
                 result = compare_rows(simplified_rows[j], data[i])
             except IndexError:
-                print("you have a new row to add that is not on the list, try appending")
+                print("appending new rows")
+                append_new_entries(simplified_rows, data)
                 return
             if result == 0:
                 # rows are the same
                 i += 1
-                j -= 1
+                j += 1
                 continue
             elif result == 1:
                 needsUpdate = True
@@ -332,7 +342,6 @@ def main():
                     simplified_rows[j]
                 )
             else:
-                needsUpdate = True
                 # iterate down the sheet until we find the same job
                 original_i = i
                 r = -1
@@ -352,65 +361,35 @@ def main():
                         r = compare_rows(simplified_rows[j], data[i])
                         i -= 1
                         
-                    if r == 1 or r == 0:
+                    if r == 1:
+                        needsUpdate = True
                         write_to_sheet(
                             i + 4, # this is 4 because of the extra i missing when exiting the while loop
                             False,
                             simplified_rows[j]
                         )
-                        i = original_i
-                        i += 1
-                        j -= 1
-                        continue
-                        
-                    write_to_sheet(
-                        -1,
-                        True,
-                        simplified_rows[j]
-                    )
-                    i = original_i
-                    i += 1
-                    j -= 1
-                    continue
                 elif r == 1:
                     #print("job found in google sheets but needs updating")
+                    needsUpdate = True
                     write_to_sheet(
                         i + 2, # this is 2 because of the extra i when exiting the while loop
                         False,
                         simplified_rows[j]
                     )
-                else:
-                    print('found the same job and it is up to date')
-
+                # reset i so that you can continue to iterate down the list
                 i = original_i
                 
             i += 1
-            j -= 1
-    elif choice == "a":
+            j += 1
+    elif choice == "n":
         needsUpdate = True
-        # 3b. or just add your new row to the google sheets
-        result = compare_rows(simplified_rows[0], data[-1])
-        if (result == 0):  # checking the most recent rows
-            print("there is no new row for you to add")
-        else:
-            print("updating rows")
-            if (result == 1):
-                row_num = len(data) + 3 # the length is title row + # of rows so we need to add 1
-                write_to_sheet(row_num, False, simplified_rows[0])
-            else:
-                write_to_sheet(-1, True, simplified_rows[0])
-              # TODO implement so that it goes up the list until it finds a job that is already in the sheet and start adding from there
+        print("ok! sounds good :)")
     else:
-        print("invalid input, choose again")
+        needsUpdate = True
+        print("invalid input, try again")
 
     if needsUpdate is False:
         print("your sheet is up to date!") 
-    # date = "2021-6-29"
-    # print(date[-5:]) # ending start, including 5th character
-    # print(date[5:]) # ending start, excluding 5th character
-    # print(date[:-5]) # beginning start, excluding 5th character
-    # print(date[:5]) # beginning start, including 5th character
-    # negative version will always be the smaller one
 
 if __name__ == "__main__":
     main()
